@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  codigo       String   @unique
+  nombre       String
+  passwordHash String
+  rol          String
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  pedidos      Pedido[]
+}
+
+model Product {
+  id         Int      @id @default(autoincrement())
+  codigo     String   @unique
+  nombre     String
+  categoria  String
+  tipo       String   @default("simple")
+  precio     Int
+  activo     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ComboItem {
+  id         Int      @id @default(autoincrement())
+  comboId    Int
+  productoId Int
+  cantidad   Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Pedido {
+  id                Int      @id @default(autoincrement())
+  codigoPedido      String   @unique
+  numeroDia         Int
+  fechaOperativa    String
+  customerLabel     String?
+  estado            String   @default("abierto")
+  subtotal          Int      @default(0)
+  descuento         Int      @default(0)
+  total             Int      @default(0)
+  efectivo          Int      @default(0)
+  tarjeta           Int      @default(0)
+  sentToKitchen     Boolean  @default(false)
+  fechaHoraCreacion DateTime @default(now())
+  fechaHoraCierre   DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  usuarioId         Int
+  usuario           User     @relation(fields: [usuarioId], references: [id])
+  items             PedidoItem[]
+}
+
+model PedidoItem {
+  id             Int      @id @default(autoincrement())
+  pedidoId       Int
+  productoId     Int
+  nombreSnapshot String
+  tipoItem       String
+  cantidad       Int
+  precioUnitario Int
+  subtotal       Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  componentes    PedidoItemComponente[]
+}
+
+model PedidoItemComponente {
+  id             Int      @id @default(autoincrement())
+  pedidoItemId   Int
+  productoId     Int
+  nombreSnapshot String
+  cantidad       Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  pedidoItem     PedidoItem @relation(fields: [pedidoItemId], references: [id], onDelete: Cascade)
+}
