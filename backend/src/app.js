@@ -2,7 +2,29 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = [
+  'https://instantcafe-production.up.railway.app',
+  'http://localhost:5173',
+];
+
+app.use(cors({
+  origin(origin, callback) {
+    // Permite requests sin origin (curl, health checks, etc.)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.options('*', cors());
+
 app.use(express.json());
 
 app.get('/', (_req, res) => {
