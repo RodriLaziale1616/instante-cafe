@@ -12,11 +12,23 @@ async function upsertProduct(data) {
 
 async function main() {
   const passwordHash = await bcrypt.hash('admin123', 10);
-  await prisma.user.upsert({
-    where: { codigo: 'admin' },
-    update: { nombre: 'Administrador', passwordHash, rol: 'admin', activo: true },
-    create: { codigo: 'admin', nombre: 'Administrador', passwordHash, rol: 'admin', activo: true },
-  });
+
+await prisma.user.upsert({
+  where: { codigo: 'admin' },
+  update: {
+    nombre: 'Administrador',
+    passwordHash,
+    rol: 'admin',
+    activo: true,
+  },
+  create: {
+    codigo: 'admin',
+    nombre: 'Administrador',
+    passwordHash,
+    rol: 'admin',
+    activo: true,
+  },
+});
 
   const cafe = await upsertProduct({ codigo: 'CAFE', nombre: 'Café', categoria: 'Cafés', precio: 12000, tipo: 'simple', activo: true });
   const cappu = await upsertProduct({ codigo: 'CAPPU', nombre: 'Cappuccino', categoria: 'Cafés', precio: 16000, tipo: 'simple', activo: true });
