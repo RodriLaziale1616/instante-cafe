@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 
+const auth = require('./middlewares/auth');
+const authController = require('./controllers/auth.controller');
+
 const app = express();
 
 app.use(cors({
@@ -16,7 +19,15 @@ app.get('/', (_req, res) => {
   res.json({ message: 'Instante Café backend OK' });
 });
 
-app.use('/api/auth', require('./routes/auth.routes'));
+/**
+ * Rutas auth explícitas para evitar cualquier problema de mounting/router
+ */
+app.post('/api/auth/login', authController.login);
+app.get('/api/auth/me', auth, authController.me);
+
+/**
+ * Otras rutas
+ */
 app.use('/api/products', require('./routes/products.routes'));
 app.use('/api/orders', require('./routes/orders.routes'));
 app.use('/api/reports', require('./routes/reports.routes'));
