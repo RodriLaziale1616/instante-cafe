@@ -3,23 +3,14 @@ const cors = require('cors');
 
 const app = express();
 
-const allowedOrigins = [
-  'https://instantcafe-production.up.railway.app',
-  'http://localhost:5173',
-];
-
-const corsOptions = {
-  origin: allowedOrigins,
+app.use(cors({
+  origin: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-};
+}));
 
-app.use((req, _res, next) => {
-  console.log(`[${req.method}] ${req.originalUrl} origin=${req.headers.origin || 'none'}`);
-  next();
-});
+app.options('*', cors());
 
-app.use(cors(corsOptions));
 app.use(express.json());
 
 app.get('/', (_req, res) => {
