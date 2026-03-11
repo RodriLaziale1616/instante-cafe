@@ -68,24 +68,33 @@ function App() {
     return Math.max(maxClosed, currentOrder.localNumber || 0) + 1;
   }
 
-  async function handleLogin(e) {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const form = new FormData(e.currentTarget);
-      const { data } = await api.post('/auth/login', {
-        codigo: form.get('codigo'),
-        password: form.get('password'),
-      });
-      localStorage.setItem('instante_token', data.token);
-      setToken(data.token);
-      setUser(data.user);
-    } catch (error) {
-      alert(error.response?.data?.message || 'No se pudo iniciar sesión');
-    } finally {
-      setLoading(false);
-    }
+ async function handleLogin(e) {
+  e.preventDefault();
+  setLoading(true);
+
+  try {
+    const form = new FormData(e.currentTarget);
+
+    const body = new URLSearchParams();
+    body.append('codigo', form.get('codigo'));
+    body.append('password', form.get('password'));
+
+    const { data } = await api.post('/auth/login', body, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    localStorage.setItem('instante_token', data.token);
+    setToken(data.token);
+    setUser(data.user);
+
+  } catch (error) {
+    alert(error.response?.data?.message || 'No se pudo iniciar sesión');
+  } finally {
+    setLoading(false);
   }
+}
 
   function logout() {
     localStorage.removeItem('instante_token');
