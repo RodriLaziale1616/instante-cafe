@@ -19,8 +19,8 @@ function App() {
   const [ordersReport, setOrdersReport] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
   const [currentOrder, setCurrentOrder] = useState(createEmptyOrder());
+  const [lastTicket, setLastTicket] = useState(null);
   const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     if (!token) return;
     loadBootstrap();
@@ -185,23 +185,39 @@ function App() {
     setCurrentOrder((prev) => ({ ...prev, payment: { efectivo: '0', tarjeta: String(total) } }));
   }
 
-  async function closeOrder() {
-    try {
-      await api.post(`/orders/${currentOrder.dbId}/close`, { efectivo, tarjeta });
-      await loadReports();
-      setCurrentOrder(createEmptyOrder(nextNumberBase()));
-      setScreen('reportes');
-      setMobileTab('productos');
-    } catch (error) {
-      alert(error.response?.data?.message || 'No se pudo cerrar el pedido');
-    }
-  }
+async function closeOrder() {
+  try {
+    await api.post(`/orders/${currentOrder.dbId}/close`, { efectivo, tarjeta });
 
+    const ticketData = {
+      numero: currentOrder.localNumber,
+      cliente: currentOrder.customerLabel || '',
+      items: currentOrder.items,
+      total,
+      efectivo,
+      tarjeta,
+      fecha: new Date().toLocaleString(),
+    };
+
+    setLastTicket(ticketData);
+
+    await loadReports();
+    setCurrentOrder(createEmptyOrder(nextNumberBase()));
+    setMobileTab('productos');
+    setScreen('ticket');
+  } catch (error) {
+    alert(error.response?.data?.message || 'No se pudo cerrar el pedido');
+  }
+}
   function newOrder() {
     if (currentOrder.items.length > 0 && !window.confirm('Hay un pedido en curso. ¿Crear uno nuevo igualmente?')) return;
     setCurrentOrder(createEmptyOrder(nextNumberBase()));
     setMobileTab('productos');
   }
+  
+  function printTicket() {
+  window.print();
+}
 
   if (!token) {
     return (
@@ -234,129 +250,195 @@ function App() {
         </div>
       </header>
 
-      {screen === 'pos' ? (
-        <>
-          <div style={styles.mobileTabs} className="mobile-tabs-force">
-            <button style={mobileTab === 'productos' ? styles.primaryButton : styles.secondaryButton} onClick={() => setMobileTab('productos')}>Productos</button>
-            <button style={mobileTab === 'pedido' ? styles.primaryButton : styles.secondaryButton} onClick={() => setMobileTab('pedido')}>Pedido actual</button>
+ {screen === 'pos' ? (
+  <>
+    <div style={styles.mobileTabs} className="mobile-tabs-force">
+      <button style={mobileTab === 'productos' ? styles.primaryButton : styles.secondaryButton} onClick={() => setMobileTab('productos')}>Productos</button>
+      <button style={mobileTab === 'pedido' ? styles.primaryButton : styles.secondaryButton} onClick={() => setMobileTab('pedido')}>Pedido actual</button>
+    </div>
+    <main style={styles.mainGrid} className="main-grid-force">
+      <section style={{ ...styles.panel, ...(mobileTab !== 'productos' ? styles.mobileHidden : {}) }} className={mobileTab !== 'productos' ? 'hide-on-mobile' : ''}>
+        <div style={styles.orderIntro}>
+          <div>
+            <div style={styles.orderBadge}>PEDIDO #{String(currentOrder.localNumber).padStart(3, '0')}</div>
+            <div style={styles.muted}>Carga rápida para takeaway</div>
           </div>
-          <main style={styles.mainGrid} className="main-grid-force">
-            <section style={{ ...styles.panel, ...(mobileTab !== 'productos' ? styles.mobileHidden : {}) }} className={mobileTab !== 'productos' ? 'hide-on-mobile' : ''}>
-              <div style={styles.orderIntro}>
-                <div>
-                  <div style={styles.orderBadge}>PEDIDO #{String(currentOrder.localNumber).padStart(3, '0')}</div>
-                  <div style={styles.muted}>Carga rápida para takeaway</div>
-                </div>
-                <input value={currentOrder.customerLabel} onChange={(e) => setCurrentOrder((prev) => ({ ...prev, customerLabel: e.target.value }))} placeholder="Cliente / label opcional" style={styles.input} />
+          <input value={currentOrder.customerLabel} onChange={(e) => setCurrentOrder((prev) => ({ ...prev, customerLabel: e.target.value }))} placeholder="Cliente / label opcional" style={styles.input} />
+        </div>
+        <h2 style={styles.sectionTitle}>Productos</h2>
+        <div style={styles.categoryRow}>
+          {categories.map((cat) => (
+            <button key={cat} onClick={() => setActiveCategory(cat)} style={activeCategory === cat ? styles.primaryButton : styles.secondaryButton}>{cat}</button>
+          ))}
+        </div>
+        <div style={styles.productGrid}>
+          {filteredCatalog.map((product) => (
+            <button key={product.id} style={styles.productCard} onClick={() => addProduct(product)}>
+              <div style={styles.productName}>{product.nombre}</div>
+              <div style={styles.muted}>{product.categoria}</div>
+              {product.components?.length ? <div style={styles.comboText}>{product.components.map(c => c.nombre).join(' + ')}</div> : null}
+              <div style={styles.productPrice}>{money(product.precio)}</div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ ...styles.panel, ...(mobileTab !== 'pedido' ? styles.mobileHidden : {}) }} className={mobileTab !== 'pedido' ? 'hide-on-mobile' : ''}>
+        <div style={styles.orderHeader}>
+          <div style={styles.orderBig}>Pedido #{String(currentOrder.localNumber).padStart(3, '0')}</div>
+          <div style={styles.customerPill}>{currentOrder.customerLabel?.trim() ? `Cliente: ${currentOrder.customerLabel}` : 'Sin nombre de cliente'}</div>
+        </div>
+
+        <div style={styles.itemsList}>
+          {currentOrder.items.length === 0 ? (
+            <div style={styles.emptyState}>Aún no agregaste productos</div>
+          ) : currentOrder.items.map((item) => (
+            <div key={item.productoId} style={styles.itemCard}>
+              <div style={{ flex: 1 }}>
+                <div style={styles.itemName}>{item.nombre}</div>
+                {item.components?.length ? <div style={styles.itemMeta}>{item.components.map(c => c.nombre).join(' + ')}</div> : null}
+                <div style={styles.itemMeta}>{money(item.precio)} c/u · Subtotal {money(item.cantidad * item.precio)}</div>
               </div>
-              <h2 style={styles.sectionTitle}>Productos</h2>
-              <div style={styles.categoryRow}>
-                {categories.map((cat) => (
-                  <button key={cat} onClick={() => setActiveCategory(cat)} style={activeCategory === cat ? styles.primaryButton : styles.secondaryButton}>{cat}</button>
-                ))}
-              </div>
-              <div style={styles.productGrid}>
-                {filteredCatalog.map((product) => (
-                  <button key={product.id} style={styles.productCard} onClick={() => addProduct(product)}>
-                    <div style={styles.productName}>{product.nombre}</div>
-                    <div style={styles.muted}>{product.categoria}</div>
-                    {product.components?.length ? <div style={styles.comboText}>{product.components.map(c => c.nombre).join(' + ')}</div> : null}
-                    <div style={styles.productPrice}>{money(product.precio)}</div>
-                  </button>
-                ))}
-              </div>
-            </section>
-            <section style={{ ...styles.panel, ...(mobileTab !== 'pedido' ? styles.mobileHidden : {}) }} className={mobileTab !== 'pedido' ? 'hide-on-mobile' : ''}>
-              <div style={styles.orderHeader}>
-                <div style={styles.orderBig}>Pedido #{String(currentOrder.localNumber).padStart(3, '0')}</div>
-                <div style={styles.customerPill}>{currentOrder.customerLabel?.trim() ? `Cliente: ${currentOrder.customerLabel}` : 'Sin nombre de cliente'}</div>
-              </div>
-              <div style={styles.itemsList}>
-                {currentOrder.items.length === 0 ? <div style={styles.emptyState}>Aún no agregaste productos</div> : currentOrder.items.map((item) => (
-                  <div key={item.productoId} style={styles.itemCard}>
-                    <div style={{ flex: 1 }}>
-                      <div style={styles.itemName}>{item.nombre}</div>
-                      {item.components?.length ? <div style={styles.itemMeta}>{item.components.map(c => c.nombre).join(' + ')}</div> : null}
-                      <div style={styles.itemMeta}>{money(item.precio)} c/u · Subtotal {money(item.cantidad * item.precio)}</div>
-                    </div>
-                    <div style={styles.qtyActions}>
-                      <button style={styles.miniButton} onClick={() => changeQty(item.productoId, -1)}>-</button>
-                      <span style={styles.qtyNumber}>{item.cantidad}</span>
-                      <button style={styles.miniButton} onClick={() => changeQty(item.productoId, 1)}>+</button>
-                      <button style={styles.deleteButton} onClick={() => removeItem(item.productoId)}>🗑</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={styles.summaryBox}><div style={styles.summaryRow}><span>Total</span><b>{money(total)}</b></div></div>
-              {!currentOrder.sentToKitchen ? <button style={styles.primaryLargeButton} onClick={sendToKitchen}>Enviar a cocina</button> : <div style={styles.successBox}>Pedido enviado a cocina ✅</div>}
-              <div style={{ marginTop: 20 }}>
-                <h3 style={{ marginTop: 0, marginBottom: 10 }}>Cobro</h3>
-                <div style={styles.quickActions}>
-                  <button style={styles.secondaryButton} onClick={quickCash}>Efectivo exacto</button>
-                  <button style={styles.secondaryButton} onClick={quickCard}>Todo tarjeta</button>
-                </div>
-                <div style={styles.paymentGrid}>
-                  <div>
-                    <label style={styles.label}>Efectivo</label>
-                    <input type="number" value={currentOrder.payment.efectivo} onChange={(e) => setCurrentOrder((prev) => ({ ...prev, payment: { ...prev.payment, efectivo: e.target.value } }))} style={styles.input} />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Tarjeta</label>
-                    <input type="number" value={currentOrder.payment.tarjeta} onChange={(e) => setCurrentOrder((prev) => ({ ...prev, payment: { ...prev.payment, tarjeta: e.target.value } }))} style={styles.input} />
-                  </div>
-                </div>
-                <div style={styles.summaryBox}>
-                  <div style={styles.summaryRow}><span>Total</span><b>{money(total)}</b></div>
-                  <div style={styles.summaryRow}><span>Pagado</span><b>{money(paid)}</b></div>
-                  <div style={styles.summaryRow}><span>Diferencia</span><b style={{ color: difference === 0 ? 'green' : '#b00020' }}>{money(difference)}</b></div>
-                </div>
-                <button style={canClose ? styles.primaryLargeButton : styles.disabledLargeButton} disabled={!canClose} onClick={closeOrder}>Cerrar pedido</button>
-              </div>
-            </section>
-          </main>
-        </>
-      ) : (
-        <section style={styles.reportSection}>
-          <h2 style={styles.sectionTitle}>Reporte de comandas</h2>
-          <div style={styles.reportGrid}>
-            <div style={styles.panel}>
-              <h3 style={{ marginTop: 0 }}>Comandas cerradas</h3>
-              <div style={styles.tableWrap}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr><th>#</th><th>Cliente</th><th>Total</th><th>Efectivo</th><th>Tarjeta</th></tr>
-                  </thead>
-                  <tbody>
-                    {ordersReport.map((order) => (
-                      <tr key={order.id}>
-                        <td>{String(order.numeroDia).padStart(3, '0')}</td>
-                        <td>{order.customerLabel || '-'}</td>
-                        <td>{money(order.total)}</td>
-                        <td>{money(order.efectivo)}</td>
-                        <td>{money(order.tarjeta)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={styles.qtyActions}>
+                <button style={styles.miniButton} onClick={() => changeQty(item.productoId, -1)}>-</button>
+                <span style={styles.qtyNumber}>{item.cantidad}</span>
+                <button style={styles.miniButton} onClick={() => changeQty(item.productoId, 1)}>+</button>
+                <button style={styles.deleteButton} onClick={() => removeItem(item.productoId)}>🗑</button>
               </div>
             </div>
-            <div style={styles.panel}>
-              <h3 style={{ marginTop: 0 }}>Productos más vendidos</h3>
-              <div style={styles.tableWrap}>
-                <table style={styles.table}>
-                  <thead><tr><th>Producto</th><th>Cantidad</th></tr></thead>
-                  <tbody>
-                    {topProducts.map((item) => (
-                      <tr key={item.nombre}><td>{item.nombre}</td><td>{item.cantidad}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          ))}
+        </div>
+
+        <div style={styles.summaryBox}>
+          <div style={styles.summaryRow}><span>Total</span><b>{money(total)}</b></div>
+        </div>
+
+        {!currentOrder.sentToKitchen ? (
+          <button style={styles.primaryLargeButton} onClick={sendToKitchen}>Enviar a cocina</button>
+        ) : (
+          <div style={styles.successBox}>Pedido enviado a cocina ✅</div>
+        )}
+
+        <div style={{ marginTop: 20 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 10 }}>Cobro</h3>
+          <div style={styles.quickActions}>
+            <button style={styles.secondaryButton} onClick={quickCash}>Efectivo exacto</button>
+            <button style={styles.secondaryButton} onClick={quickCard}>Todo tarjeta</button>
+          </div>
+
+          <div style={styles.paymentGrid}>
+            <div>
+              <label style={styles.label}>Efectivo</label>
+              <input type="number" value={currentOrder.payment.efectivo} onChange={(e) => setCurrentOrder((prev) => ({ ...prev, payment: { ...prev.payment, efectivo: e.target.value } }))} style={styles.input} />
+            </div>
+            <div>
+              <label style={styles.label}>Tarjeta</label>
+              <input type="number" value={currentOrder.payment.tarjeta} onChange={(e) => setCurrentOrder((prev) => ({ ...prev, payment: { ...prev.payment, tarjeta: e.target.value } }))} style={styles.input} />
             </div>
           </div>
-        </section>
-      )}
+
+          <div style={styles.summaryBox}>
+            <div style={styles.summaryRow}><span>Total</span><b>{money(total)}</b></div>
+            <div style={styles.summaryRow}><span>Pagado</span><b>{money(paid)}</b></div>
+            <div style={styles.summaryRow}><span>Diferencia</span><b style={{ color: difference === 0 ? 'green' : '#b00020' }}>{money(difference)}</b></div>
+          </div>
+
+          <button style={canClose ? styles.primaryLargeButton : styles.disabledLargeButton} disabled={!canClose} onClick={closeOrder}>Cerrar pedido</button>
+        </div>
+      </section>
+    </main>
+  </>
+) : screen === 'ticket' ? (
+  <section style={styles.ticketPage}>
+    <div style={styles.ticketCard}>
+      <h2 style={{ marginTop: 0, marginBottom: 12 }}>Ticket de venta</h2>
+      <div style={styles.ticketBlock}>
+        <div style={styles.ticketTitle}>Instante Café</div>
+        <div style={styles.ticketMeta}>Pedido #{String(lastTicket?.numero || 0).padStart(3, '0')}</div>
+        <div style={styles.ticketMeta}>{lastTicket?.fecha}</div>
+        <div style={styles.ticketMeta}>{lastTicket?.cliente ? `Cliente: ${lastTicket.cliente}` : 'Cliente: -'}</div>
+      </div>
+
+      <div style={styles.ticketItems}>
+        {lastTicket?.items?.map((item) => (
+          <div key={item.productoId} style={styles.ticketRow}>
+            <div>
+              <div style={{ fontWeight: 700 }}>{item.nombre}</div>
+              <div style={styles.ticketMeta}>
+                {item.cantidad} x {money(item.precio)}
+              </div>
+            </div>
+            <div style={{ fontWeight: 700 }}>{money(item.cantidad * item.precio)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={styles.ticketTotals}>
+        <div style={styles.summaryRow}><span>Total</span><b>{money(lastTicket?.total)}</b></div>
+        <div style={styles.summaryRow}><span>Efectivo</span><b>{money(lastTicket?.efectivo)}</b></div>
+        <div style={styles.summaryRow}><span>Tarjeta</span><b>{money(lastTicket?.tarjeta)}</b></div>
+      </div>
+
+      <div style={styles.ticketActions}>
+        <button style={styles.secondaryButton} onClick={printTicket}>Imprimir</button>
+        <button
+          style={styles.primaryButton}
+          onClick={() => {
+            setLastTicket(null);
+            setScreen('pos');
+            setCurrentOrder(createEmptyOrder(nextNumberBase()));
+          }}
+        >
+          Nuevo pedido
+        </button>
+        <button style={styles.secondaryButton} onClick={() => setScreen('reportes')}>
+          Ir a reportes
+        </button>
+      </div>
+    </div>
+  </section>
+) : (
+  <section style={styles.reportSection}>
+    <h2 style={styles.sectionTitle}>Reporte de comandas</h2>
+    <div style={styles.reportGrid} className="report-grid-force">
+      <div style={styles.panel}>
+        <h3 style={{ marginTop: 0 }}>Comandas cerradas</h3>
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr><th>#</th><th>Cliente</th><th>Total</th><th>Efectivo</th><th>Tarjeta</th></tr>
+            </thead>
+            <tbody>
+              {ordersReport.map((order) => (
+                <tr key={order.id}>
+                  <td>{String(order.numeroDia).padStart(3, '0')}</td>
+                  <td>{order.customerLabel || '-'}</td>
+                  <td>{money(order.total)}</td>
+                  <td>{money(order.efectivo)}</td>
+                  <td>{money(order.tarjeta)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={styles.panel}>
+        <h3 style={{ marginTop: 0 }}>Productos más vendidos</h3>
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead><tr><th>Producto</th><th>Cantidad</th></tr></thead>
+            <tbody>
+              {topProducts.map((item) => (
+                <tr key={item.nombre}><td>{item.nombre}</td><td>{item.cantidad}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+)}
     </div>
   );
 }
@@ -410,6 +492,68 @@ const styles = {
   muted: { color: '#64748b' },
   emptyState: { padding: 20, border: '1px dashed #cbd5e1', borderRadius: 12, textAlign: 'center', color: '#64748b' },
   mobileHidden: {},
+  ticketPage: {
+  padding: 20,
+  display: 'flex',
+  justifyContent: 'center',
+},
+
+ticketCard: {
+  width: '100%',
+  maxWidth: 520,
+  background: 'white',
+  borderRadius: 18,
+  padding: 24,
+  boxShadow: '0 8px 24px rgba(0,0,0,0.06)',
+},
+
+ticketBlock: {
+  borderBottom: '1px dashed #cbd5e1',
+  paddingBottom: 12,
+  marginBottom: 16,
+},
+
+ticketTitle: {
+  fontSize: 24,
+  fontWeight: 800,
+  marginBottom: 8,
+},
+
+ticketMeta: {
+  fontSize: 14,
+  color: '#64748b',
+  marginTop: 4,
+},
+
+ticketItems: {
+  display: 'grid',
+  gap: 12,
+  marginBottom: 16,
+},
+
+ticketRow: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 12,
+  alignItems: 'flex-start',
+  borderBottom: '1px solid #f1f5f9',
+  paddingBottom: 10,
+},
+
+ticketTotals: {
+  borderTop: '1px solid #e5e7eb',
+  paddingTop: 12,
+  marginTop: 12,
+  display: 'grid',
+  gap: 8,
+},
+
+ticketActions: {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap',
+  marginTop: 20,
+},
 };
 
 const styleTag = document.createElement('style');
