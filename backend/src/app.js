@@ -31,7 +31,7 @@ app.get('/api/auth/me', auth, authController.me);
 app.use('/api/products', require('./routes/products.routes'));
 app.use('/api/orders', require('./routes/orders.routes'));
 app.use('/api/reports', require('./routes/reports.routes'));
-
+app.use('/api/users', require('./routes/users.routes'));
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ message: err.message || 'Error interno del servidor' });

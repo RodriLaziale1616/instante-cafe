@@ -469,7 +469,19 @@ function App() {
     precio: '',
     tipo: 'simple',
     activo: true,
+  })
+  const [usersList, setUsersList] = useState([]);
+  const [savingUser, setSavingUser] = useState(false);
+  const [userForm, setUserForm] = useState({
+  id: null,
+  codigo: '',
+  nombre: '',
+  password: '',
+  rol: 'operador',
+  activo: true,
   });
+  const isAdmin = user?.rol === 'admin';
+  const isOperador = user?.rol === 'operador';;
 
   useEffect(() => {
     localStorage.setItem('instante_theme', theme);
@@ -488,6 +500,9 @@ function App() {
       ]);
       setUser(me);
       setCatalog(products);
+      if (me.rol === 'admin') {
+  await loadUsers();
+}
       await loadReports();
     } catch (error) {
       console.error(error);
@@ -496,6 +511,67 @@ function App() {
       setUser(null);
     }
   }
+  async function loadUsers() {
+  const { data } = await api.get('/users');
+  setUsersList(data);
+}
+
+function resetUserForm() {
+  setUserForm({
+    id: null,
+    codigo: '',
+    nombre: '',
+    password: '',
+    rol: 'operador',
+    activo: true,
+  });
+}
+
+function openNewUserForm() {
+  resetUserForm();
+  setScreen('usuarios');
+}
+
+function openEditUserForm(userItem) {
+  setUserForm({
+    id: userItem.id,
+    codigo: userItem.codigo || '',
+    nombre: userItem.nombre || '',
+    password: '',
+    rol: userItem.rol || 'operador',
+    activo: Boolean(userItem.activo),
+  });
+  setScreen('usuarios');
+}
+
+async function saveUser(e) {
+  e.preventDefault();
+  setSavingUser(true);
+
+  try {
+    const payload = {
+      codigo: userForm.codigo,
+      nombre: userForm.nombre,
+      password: userForm.password,
+      rol: userForm.rol,
+      activo: userForm.activo,
+    };
+
+    if (userForm.id) {
+      await api.put(`/users/${userForm.id}`, payload);
+    } else {
+      await api.post('/users', payload);
+    }
+
+    await loadUsers();
+    resetUserForm();
+    alert(userForm.id ? 'Usuario actualizado' : 'Usuario creado');
+  } catch (error) {
+    alert(error.response?.data?.message || 'No se pudo guardar el usuario');
+  } finally {
+    setSavingUser(false);
+  }
+}
 
   async function loadReports() {
     const [{ data: orders }, { data: top }] = await Promise.all([
@@ -756,8 +832,8 @@ function App() {
           <p style={styles.muted}>Sistema online · estilo nuevo</p>
 
           <form onSubmit={handleLogin} style={{ display: 'grid', gap: 12 }}>
-            <input name="codigo" defaultValue="admin" placeholder="Usuario" style={styles.input} />
-            <input name="password" type="password" defaultValue="admin123" placeholder="Contraseña" style={styles.input} />
+            <input name="codigo" placeholder="Usuario" style={styles.input} autoComplete="username" />
+            <input name="password" type="password" placeholder="Contraseña" style={styles.input} autoComplete="current-password" />
             <button type="submit" style={styles.primaryButton} disabled={loading}>
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
@@ -784,17 +860,55 @@ function App() {
           <div style={styles.brand}>🐱 Modo Café POS</div>
           <div style={styles.headerSub}>Hola, {user?.nombre}</div>
         </div>
-
         <div style={styles.headerActions}>
-          <button style={screen === 'pos' ? styles.primaryButton : styles.secondaryButton} onClick={() => setScreen('pos')}>POS</button>
-          <button style={screen === 'productos' ? styles.primaryButton : styles.secondaryButton} onClick={() => setScreen('productos')}>Productos</button>
-          <button style={screen === 'reportes' ? styles.primaryButton : styles.secondaryButton} onClick={() => { setScreen('reportes'); loadReports(); }}>Reportes</button>
-          <button style={styles.secondaryButton} onClick={newOrder}>Nuevo pedido</button>
-          <button style={styles.secondaryButton} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-            {theme === 'dark' ? '☀ Claro' : '🌙 Oscuro'}
-          </button>
-          <button style={styles.secondaryButton} onClick={logout}>Salir</button>
-        </div>
+        <button
+        style={screen === 'pos' ? styles.primaryButton : styles.secondaryButton}
+    onClick={() => setScreen('pos')}
+  >
+    POS
+  </button>
+
+  {isAdmin && (
+    <button
+      style={screen === 'productos' ? styles.primaryButton : styles.secondaryButton}
+      onClick={() => setScreen('productos')}
+    >
+      Productos
+    </button>
+  )}
+
+  {isAdmin && (
+    <button
+      style={screen === 'usuarios' ? styles.primaryButton : styles.secondaryButton}
+      onClick={() => setScreen('usuarios')}
+    >
+      Usuarios
+    </button>
+  )}
+
+  {isAdmin && (
+    <button
+      style={screen === 'reportes' ? styles.primaryButton : styles.secondaryButton}
+      onClick={() => {
+        setScreen('reportes');
+        loadReports();
+      }}
+    >
+      Reportes
+    </button>
+  )}
+
+  <button style={styles.secondaryButton} onClick={newOrder}>Nuevo pedido</button>
+
+  <button
+    style={styles.secondaryButton}
+    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+  >
+    {theme === 'dark' ? '☀ Claro' : '🌙 Oscuro'}
+  </button>
+
+  <button style={styles.secondaryButton} onClick={logout}>Salir</button>
+</div>
       </header>
 
       {screen === 'pos' ? (
@@ -928,6 +1042,112 @@ function App() {
             </section>
           </main>
         </>
+        ) : screen === 'usuarios' ? (
+  <section style={styles.productsPage}>
+    <div style={styles.productsLayout} className="report-grid-force">
+      <div style={styles.panel}>
+        <div style={styles.productsActions}>
+          <button style={styles.primaryButton} onClick={openNewUserForm}>+ Nuevo usuario</button>
+          <button style={styles.secondaryButton} onClick={() => loadUsers()}>Actualizar lista</button>
+        </div>
+
+        <h2 style={styles.sectionTitle}>Usuarios</h2>
+
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Rol</th>
+                <th>Activo</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {usersList.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.codigo}</td>
+                  <td>{item.nombre}</td>
+                  <td>{item.rol}</td>
+                  <td>{item.activo ? 'Sí' : 'No'}</td>
+                  <td>
+                    <button style={styles.secondaryButton} onClick={() => openEditUserForm(item)}>
+                      Editar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={styles.panel}>
+        <h2 style={styles.sectionTitle}>{userForm.id ? 'Editar usuario' : 'Nuevo usuario'}</h2>
+
+        <form onSubmit={saveUser} style={styles.formGrid}>
+          <div>
+            <label style={styles.label}>Código</label>
+            <input
+              value={userForm.codigo}
+              onChange={(e) => setUserForm((prev) => ({ ...prev, codigo: e.target.value }))}
+              style={styles.input}
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>Nombre</label>
+            <input
+              value={userForm.nombre}
+              onChange={(e) => setUserForm((prev) => ({ ...prev, nombre: e.target.value }))}
+              style={styles.input}
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>Contraseña {userForm.id ? '(dejar vacío para no cambiar)' : ''}</label>
+            <input
+              type="password"
+              value={userForm.password}
+              onChange={(e) => setUserForm((prev) => ({ ...prev, password: e.target.value }))}
+              style={styles.input}
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>Rol</label>
+            <select
+              value={userForm.rol}
+              onChange={(e) => setUserForm((prev) => ({ ...prev, rol: e.target.value }))}
+              style={styles.input}
+            >
+              <option value="admin">Administrador</option>
+              <option value="operador">Operador</option>
+            </select>
+          </div>
+
+          <label style={styles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={userForm.activo}
+              onChange={(e) => setUserForm((prev) => ({ ...prev, activo: e.target.checked }))}
+            />
+            Activo
+          </label>
+
+          <div style={styles.productsActions}>
+            <button type="submit" style={styles.primaryButton} disabled={savingUser}>
+              {savingUser ? 'Guardando...' : (userForm.id ? 'Guardar cambios' : 'Crear usuario')}
+            </button>
+            <button type="button" style={styles.secondaryButton} onClick={resetUserForm}>
+              Limpiar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
       ) : screen === 'ticket' ? (
         <section style={styles.ticketPage}>
           <div style={styles.ticketCard}>
