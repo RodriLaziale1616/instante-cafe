@@ -9,6 +9,14 @@ const money = (n) =>
     maximumFractionDigits: 0,
   }).format(n || 0);
 
+  const today = new Date().toISOString().slice(0, 10);
+const [reportFilters, setReportFilters] = useState({
+  fechaInicio: today,
+  fechaFin: today,
+});
+
+const AUTO_LOGOUT_MS = 30 * 60 * 1000;
+
 function getStyles(theme) {
   const isDark = theme === 'dark';
 
@@ -491,6 +499,28 @@ function App() {
     if (!token) return;
     loadBootstrap();
   }, [token]);
+  useEffect(() => {
+  if (!token) return;
+
+  let timeout;
+
+  const resetTimer = () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      logout(true);
+    }, AUTO_LOGOUT_MS);
+  };
+
+  const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+  events.forEach((event) => window.addEventListener(event, resetTimer));
+  resetTimer();
+
+  return () => {
+    clearTimeout(timeout);
+    events.forEach((event) => window.removeEventListener(event, resetTimer));
+  };
+}, [token]);
 
   async function loadBootstrap() {
     try {
@@ -573,14 +603,22 @@ async function saveUser(e) {
   }
 }
 
-  async function loadReports() {
-    const [{ data: orders }, { data: top }] = await Promise.all([
-      api.get('/reports/orders'),
-      api.get('/reports/top-products'),
-    ]);
-    setOrdersReport(orders);
-    setTopProducts(top);
-  }
+async function loadReports(customFilters) {
+  const filters = customFilters || reportFilters;
+
+  const params = {
+    fechaInicio: filters.fechaInicio,
+    fechaFin: filters.fechaFin,
+  };
+
+  const [{ data: orders }, { data: top }] = await Promise.all([
+    api.get('/reports/orders', { params }),
+    api.get('/reports/top-products', { params }),
+  ]);
+
+  setOrdersReport(orders);
+  setTopProducts(top);
+}
 
   function createEmptyOrder(nextNumber = 1) {
     return {
@@ -618,6 +656,11 @@ async function saveUser(e) {
       localStorage.setItem('instante_token', data.token);
       setToken(data.token);
       setUser(data.user);
+      setScreen('pos');
+setMobileTab('productos');
+setLastTicket(null);
+setCurrentOrder(createEmptyOrder());
+setActiveCategory('Todos');
     } catch (error) {
       alert(error.response?.data?.message || 'No se pudo iniciar sesión');
     } finally {
@@ -625,12 +668,25 @@ async function saveUser(e) {
     }
   }
 
-  function logout() {
-    localStorage.removeItem('instante_token');
-    setToken(null);
-    setUser(null);
-    setCatalog([]);
+function logout(auto = false) {
+  localStorage.removeItem('instante_token');
+  setToken(null);
+  setUser(null);
+  setCatalog([]);
+  setOrdersReport([]);
+  setTopProducts([]);
+  setCurrentOrder(createEmptyOrder());
+  setLastTicket(null);
+  resetProductForm();
+  resetUserForm();
+  setScreen('pos');
+  setMobileTab('productos');
+  setActiveCategory('Todos');
+
+  if (auto) {
+    alert('La sesión se cerró automáticamente por inactividad');
   }
+}
 
   const categories = ['Todos', ...new Set(catalog.map((p) => p.categoria))];
   const filteredCatalog = activeCategory === 'Todos'
@@ -697,6 +753,17 @@ async function saveUser(e) {
   const paid = efectivo + tarjeta;
   const difference = total - paid;
   const canClose = currentOrder.sentToKitchen && total > 0 && difference === 0 && currentOrder.dbId;
+  const reportTotals = useMemo(() => {
+  return ordersReport.reduce(
+    (acc, order) => {
+      acc.total += Number(order.total || 0);
+      acc.efectivo += Number(order.efectivo || 0);
+      acc.tarjeta += Number(order.tarjeta || 0);
+      return acc;
+    },
+    { total: 0, efectivo: 0, tarjeta: 0 }
+  );
+}, [ordersReport]);
 
   async function sendToKitchen() {
     if (currentOrder.items.length === 0) return alert('Agrega al menos un producto');
@@ -727,30 +794,31 @@ async function saveUser(e) {
     setCurrentOrder((prev) => ({ ...prev, payment: { efectivo: '0', tarjeta: String(total) } }));
   }
 
-  async function closeOrder() {
-    try {
-      await api.post(`/orders/${currentOrder.dbId}/close`, { efectivo, tarjeta });
+async function closeOrder() {
+  try {
+    await api.post('/orders/${currentOrder.dbId}/close', { efectivo, tarjeta });
 
-      const ticketData = {
-        numero: currentOrder.localNumber,
-        cliente: currentOrder.customerLabel || '',
-        items: currentOrder.items,
-        total,
-        efectivo,
-        tarjeta,
-        fecha: new Date().toLocaleString(),
-      };
+    const ticketData = {
+      numeroDia: currentOrder.localNumber,
+      comandaId: currentOrder.dbId,
+      cliente: currentOrder.customerLabel || '',
+      items: currentOrder.items,
+      total,
+      efectivo,
+      tarjeta,
+      fecha: new Date().toLocaleString(),
+    };
 
-      setLastTicket(ticketData);
+    setLastTicket(ticketData);
 
-      await loadReports();
-      setCurrentOrder(createEmptyOrder(nextNumberBase()));
-      setMobileTab('productos');
-      setScreen('ticket');
-    } catch (error) {
-      alert(error.response?.data?.message || 'No se pudo cerrar el pedido');
-    }
+    await loadReports();
+    setCurrentOrder(createEmptyOrder(nextNumberBase()));
+    setMobileTab('productos');
+    setScreen('ticket');
+  } catch (error) {
+    alert(error.response?.data?.message || 'No se pudo cerrar el pedido');
   }
+}
 
   function newOrder() {
     if (
@@ -1045,43 +1113,83 @@ async function saveUser(e) {
         ) : screen === 'usuarios' ? (
   <section style={styles.productsPage}>
     <div style={styles.productsLayout} className="report-grid-force">
-      <div style={styles.panel}>
-        <div style={styles.productsActions}>
-          <button style={styles.primaryButton} onClick={openNewUserForm}>+ Nuevo usuario</button>
-          <button style={styles.secondaryButton} onClick={() => loadUsers()}>Actualizar lista</button>
-        </div>
+<div style={styles.panel}>
+  <h3 style={{ marginTop: 0 }}>Comandas cerradas</h3>
 
-        <h2 style={styles.sectionTitle}>Usuarios</h2>
+  <div style={styles.productsActions}>
+    <div>
+      <label style={styles.label}>Desde</label>
+      <input
+        type="date"
+        value={reportFilters.fechaInicio}
+        onChange={(e) =>
+          setReportFilters((prev) => ({ ...prev, fechaInicio: e.target.value }))
+        }
+        style={styles.input}
+      />
+    </div>
 
-        <div style={styles.tableWrap}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th>Rol</th>
-                <th>Activo</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {usersList.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.codigo}</td>
-                  <td>{item.nombre}</td>
-                  <td>{item.rol}</td>
-                  <td>{item.activo ? 'Sí' : 'No'}</td>
-                  <td>
-                    <button style={styles.secondaryButton} onClick={() => openEditUserForm(item)}>
-                      Editar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div>
+      <label style={styles.label}>Hasta</label>
+      <input
+        type="date"
+        value={reportFilters.fechaFin}
+        onChange={(e) =>
+          setReportFilters((prev) => ({ ...prev, fechaFin: e.target.value }))
+        }
+        style={styles.input}
+      />
+    </div>
+
+    <div style={{ display: 'flex', alignItems: 'end' }}>
+      <button
+        style={styles.primaryButton}
+        onClick={() => loadReports(reportFilters)}
+      >
+        Filtrar
+      </button>
+    </div>
+  </div>
+
+  <div style={styles.tableWrap}>
+    <table style={styles.table}>
+      <thead>
+        <tr>
+          <th>Comanda</th>
+          <th>Cliente</th>
+          <th>Total</th>
+          <th>Efectivo</th>
+          <th>Tarjeta</th>
+          <th>Fecha cierre</th>
+        </tr>
+      </thead>
+      <tbody>
+        {ordersReport.map((order) => (
+          <tr key={order.id}>
+            <td>{order.codigoPedido || order.id}</td>
+            <td>{order.customerLabel || '-'}</td>
+            <td>{money(order.total)}</td>
+            <td>{money(order.efectivo)}</td>
+            <td>{money(order.tarjeta)}</td>
+            <td>
+              {order.fechaHoraCierre
+                ? new Date(order.fechaHoraCierre).toLocaleString()
+                : '-'}
+            </td>
+          </tr>
+        ))}
+
+        <tr>
+          <td colSpan="2"><b>Totales</b></td>
+          <td><b>{money(reportTotals.total)}</b></td>
+          <td><b>{money(reportTotals.efectivo)}</b></td>
+          <td><b>{money(reportTotals.tarjeta)}</b></td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 
       <div style={styles.panel}>
         <h2 style={styles.sectionTitle}>{userForm.id ? 'Editar usuario' : 'Nuevo usuario'}</h2>
@@ -1155,7 +1263,8 @@ async function saveUser(e) {
 
             <div style={styles.ticketBlock}>
               <div style={styles.ticketTitle}>🐱 Modo Café</div>
-              <div style={styles.ticketMeta}>Pedido #{String(lastTicket?.numero || 0).padStart(3, '0')}</div>
+              <div style={styles.ticketMeta}>Comanda ID: {lastTicket?.comandaId || '-'}</div>
+              <div style={styles.ticketMeta}>N° día: {String(lastTicket?.numeroDia || 0).padStart(3, '0')}</div>
               <div style={styles.ticketMeta}>{lastTicket?.fecha}</div>
               <div style={styles.ticketMeta}>{lastTicket?.cliente ? `Cliente: ${lastTicket.cliente}` : 'Cliente: -'}</div>
             </div>
