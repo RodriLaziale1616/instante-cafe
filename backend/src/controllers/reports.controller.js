@@ -1,41 +1,65 @@
 const prisma = require('../lib/prisma');
 
+function buildFechaOperativaFilter(req) {
+  const fechaInicio = req.query.fechaInicio || req.query.from;
+  const fechaFin = req.query.fechaFin || req.query.to;
+
+  if (!fechaInicio && !fechaFin) return undefined;
+
+  const filter = {};
+  if (fechaInicio) filter.gte = fechaInicio;
+  if (fechaFin) filter.lte = fechaFin;
+
+  return filter;
+}
+
 exports.orders = async (req, res) => {
-  const { from, to } = req.query;
-  const where = { estado: 'cerrado' };
-  if (from || to) {
-    where.fechaOperativa = {};
-    if (from) where.fechaOperativa.gte = from;
-    if (to) where.fechaOperativa.lte = to;
+  try {
+    const fechaOperativa = buildFechaOperativaFilter(req);
+
+    const where = { estado: 'cerrado' };
+    if (fechaOperativa) where.fechaOperativa = fechaOperativa;
+
+    const orders = await prisma.pedido.findMany({
+      where,
+      include: { usuario: true },
+      orderBy: { fechaHoraCierre: 'desc' },
+    });
+
+    res.json(orders);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'No se pudieron cargar las comandas' });
   }
-  const orders = await prisma.pedido.findMany({
-    where,
-    include: { usuario: true },
-    orderBy: { fechaHoraCierre: 'desc' },
-  });
-  res.json(orders);
 };
 
 exports.topProducts = async (req, res) => {
-  const { from, to } = req.query;
-  const wherePedido = { estado: 'cerrado' };
-  if (from || to) {
-    wherePedido.fechaOperativa = {};
-    if (from) wherePedido.fechaOperativa.gte = from;
-    if (to) wherePedido.fechaOperativa.lte = to;
-  }
+  try {
+    const fechaOperativa = buildFechaOperativaFilter(req);
 
-  const components = await prisma.pedidoItemComponente.findMany({
-    where: { pedidoItem: { pedido: wherePedido } },
-    include: { pedidoItem: { include: { pedido: true } } },
-  });
+    const wherePedido = { estado: 'cerrado' };
+    if (fechaOperativa) wherePedido.fechaOperativa = fechaOperativa;
 
-  const map = new Map();
-  for (const c of components) {
-    const prev = map.get(c.nombreSnapshot) || { nombre: c.nombreSnapshot, cantidad: 0 };
-    prev.cantidad += c.cantidad;
-    map.set(c.nombreSnapshot, prev);
+    const items = await prisma.pedidoItem.findMany({
+      where: { pedido: wherePedido },
+      include: { pedido: true },
+    });
+
+    const map = new Map();
+
+    for (const item of items) {
+      const prev = map.get(item.nombreSnapshot) || {
+        nombre: item.nombreSnapshot,
+        cantidad: 0,
+      };
+      prev.cantidad += item.cantidad;
+      map.set(item.nombreSnapshot, prev);
+    }
+
+    const result = [...map.values()].sort((a, b) => b.cantidad - a.cantidad);
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'No se pudieron cargar los productos más vendidos' });
   }
-  const result = [...map.values()].sort((a, b) => b.cantidad - a.cantidad);
-  res.json(result);
 };
