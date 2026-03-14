@@ -93,7 +93,7 @@ exports.excel = async (req, res) => {
       tarjeta: totals.tarjeta,
     });
 
-    // Hoja 2: Productos
+    // Hoja 2: Productos más vendidos
     const sheetProducts = workbook.addWorksheet('Productos mas vendidos');
 
     sheetProducts.columns = [
@@ -115,26 +115,21 @@ exports.excel = async (req, res) => {
       headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
     });
 
+    const fechaInicio = req.query.fechaInicio || 'inicio';
+    const fechaFin = req.query.fechaFin || 'fin';
+
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     );
 
-    const fechaInicio = req.query.fechaInicio || 'inicio';
-const fechaFin = req.query.fechaFin || 'fin';
+    res.setHeader(
+      'Content-Disposition',
+      attachment; filename="modo-cafe-reportes-${fechaInicio}-a-${fechaFin}.xlsx"
+    );
 
-res.setHeader(
-  'Content-Type',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-);
-
-res.setHeader(
-  'Content-Disposition',
-  attachment; filename="modo-cafe-reportes-${fechaInicio}-a-${fechaFin}.xlsx"
-);
-
-await workbook.xlsx.write(res);
-res.end();
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'No se pudo exportar el Excel' });
