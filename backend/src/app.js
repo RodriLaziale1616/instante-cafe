@@ -36,6 +36,6 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ message: err.message || 'Error interno del servidor' });
 });
-app.use('/api/export', require('./routes/export.routes'));
+// app.use('/api/export', require('./routes/export.routes'));
 
 module.exports = app;
