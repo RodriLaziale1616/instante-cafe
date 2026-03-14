@@ -451,13 +451,38 @@ function getStyles(theme) {
       flexWrap: 'wrap',
       marginBottom: 16,
     },
+    statsGrid: {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gap: 12,
+  marginBottom: 20,
+},
+
+statCard: {
+  borderRadius: 16,
+  padding: 16,
+  border: '1px solid rgba(0,0,0,0.08)',
+  boxShadow: '0 6px 18px rgba(0,0,0,0.04)',
+  background: theme === 'dark' ? '#332824' : '#FFFDF9',
+},
+
+statLabel: {
+  fontSize: 13,
+  opacity: 0.8,
+  marginBottom: 8,
+},
+
+statValue: {
+  fontSize: 20,
+  fontWeight: 800,
+},
   };
 }
 
 function App() {
   const [theme, setTheme] = useState(localStorage.getItem('instante_theme') || 'light');
   const styles = getStyles(theme);
-
+  const AUTO_LOGOUT_MS = 30 * 60 * 1000;
   const [token, setToken] = useState(localStorage.getItem('instante_token'));
   const [user, setUser] = useState(null);
   const [catalog, setCatalog] = useState([]);
@@ -501,8 +526,30 @@ function App() {
   }, [token]);
   useEffect(() => {
   if (!token) return;
+  let timeout;
+
+useEffect(() => {
+  if (!token) return;
 
   let timeout;
+
+  const resetTimer = () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      logout(true);
+    }, AUTO_LOGOUT_MS);
+  };
+
+  const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+  events.forEach((event) => window.addEventListener(event, resetTimer));
+  resetTimer();
+
+  return () => {
+    clearTimeout(timeout);
+    events.forEach((event) => window.removeEventListener(event, resetTimer));
+  };
+}, [token]);
 
   const resetTimer = () => {
     clearTimeout(timeout);
@@ -660,7 +707,8 @@ async function loadReports(customFilters) {
 setMobileTab('productos');
 setLastTicket(null);
 setCurrentOrder(createEmptyOrder());
-setActiveCategory('Todos');
+resetProductFormp();
+resetUserForm();
     } catch (error) {
       alert(error.response?.data?.message || 'No se pudo iniciar sesión');
     } finally {
@@ -670,15 +718,18 @@ setActiveCategory('Todos');
 
 function logout(auto = false) {
   localStorage.removeItem('instante_token');
+
   setToken(null);
   setUser(null);
   setCatalog([]);
   setOrdersReport([]);
   setTopProducts([]);
-  setCurrentOrder(createEmptyOrder());
   setLastTicket(null);
+
+  setCurrentOrder(createEmptyOrder());
   resetProductForm();
   resetUserForm();
+
   setScreen('pos');
   setMobileTab('productos');
   setActiveCategory('Todos');
@@ -753,16 +804,20 @@ function logout(auto = false) {
   const paid = efectivo + tarjeta;
   const difference = total - paid;
   const canClose = currentOrder.sentToKitchen && total > 0 && difference === 0 && currentOrder.dbId;
-  const reportTotals = useMemo(() => {
-  return ordersReport.reduce(
-    (acc, order) => {
-      acc.total += Number(order.total || 0);
-      acc.efectivo += Number(order.efectivo || 0);
-      acc.tarjeta += Number(order.tarjeta || 0);
-      return acc;
-    },
-    { total: 0, efectivo: 0, tarjeta: 0 }
-  );
+const reportTotals = useMemo(() => {
+  const totalVentas = ordersReport.reduce((acc, order) => acc + Number(order.total || 0), 0);
+  const totalEfectivo = ordersReport.reduce((acc, order) => acc + Number(order.efectivo || 0), 0);
+  const totalTarjeta = ordersReport.reduce((acc, order) => acc + Number(order.tarjeta || 0), 0);
+  const cantidadComandas = ordersReport.length;
+  const ticketPromedio = cantidadComandas ? totalVentas / cantidadComandas : 0;
+
+  return {
+    totalVentas,
+    totalEfectivo,
+    totalTarjeta,
+    cantidadComandas,
+    ticketPromedio,
+  };
 }, [ordersReport]);
 
   async function sendToKitchen() {
@@ -1409,47 +1464,139 @@ async function closeOrder() {
           </div>
         </section>
       ) : (
-        <section style={styles.reportSection}>
-          <h2 style={styles.sectionTitle}>Reporte de comandas</h2>
-          <div style={styles.reportGrid} className="report-grid-force">
-            <div style={styles.panel}>
-              <h3 style={{ marginTop: 0 }}>Comandas cerradas</h3>
-              <div style={styles.tableWrap}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr><th>#</th><th>Cliente</th><th>Total</th><th>Efectivo</th><th>Tarjeta</th></tr>
-                  </thead>
-                  <tbody>
-                    {ordersReport.map((order) => (
-                      <tr key={order.id}>
-                        <td>{String(order.numeroDia).padStart(3, '0')}</td>
-                        <td>{order.customerLabel || '-'}</td>
-                        <td>{money(order.total)}</td>
-                        <td>{money(order.efectivo)}</td>
-                        <td>{money(order.tarjeta)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+  <section style={styles.reportSection}>
+    <h2 style={styles.sectionTitle}>Reporte de comandas</h2>
 
-            <div style={styles.panel}>
-              <h3 style={{ marginTop: 0 }}>Productos más vendidos</h3>
-              <div style={styles.tableWrap}>
-                <table style={styles.table}>
-                  <thead><tr><th>Producto</th><th>Cantidad</th></tr></thead>
-                  <tbody>
-                    {topProducts.map((item) => (
-                      <tr key={item.nombre}><td>{item.nombre}</td><td>{item.cantidad}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+    <div style={styles.statsGrid}>
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Comandas</div>
+        <div style={styles.statValue}>{reportTotals.cantidadComandas}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Total ventas</div>
+        <div style={styles.statValue}>{money(reportTotals.totalVentas)}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Efectivo</div>
+        <div style={styles.statValue}>{money(reportTotals.totalEfectivo)}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Tarjeta</div>
+        <div style={styles.statValue}>{money(reportTotals.totalTarjeta)}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Ticket promedio</div>
+        <div style={styles.statValue}>{money(reportTotals.ticketPromedio)}</div>
+      </div>
+    </div>
+
+    <div style={styles.reportGrid} className="report-grid-force">
+      <div style={styles.panel}>
+        <h3 style={{ marginTop: 0 }}>Comandas cerradas</h3>
+
+        <div style={styles.productsActions}>
+          <div>
+            <label style={styles.label}>Desde</label>
+            <input
+              type="date"
+              value={reportFilters.fechaInicio}
+              onChange={(e) =>
+                setReportFilters((prev) => ({ ...prev, fechaInicio: e.target.value }))
+              }
+              style={styles.input}
+            />
           </div>
-        </section>
-      )}
+
+          <div>
+            <label style={styles.label}>Hasta</label>
+            <input
+              type="date"
+              value={reportFilters.fechaFin}
+              onChange={(e) =>
+                setReportFilters((prev) => ({ ...prev, fechaFin: e.target.value }))
+              }
+              style={styles.input}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'end', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              style={styles.primaryButton}
+              onClick={() => loadReports(reportFilters)}
+            >
+              Filtrar
+            </button>
+          </div>
+        </div>
+
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th>Comanda</th>
+                <th>Cliente</th>
+                <th>Total</th>
+                <th>Efectivo</th>
+                <th>Tarjeta</th>
+                <th>Fecha cierre</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ordersReport.map((order) => (
+                <tr key={order.id}>
+                  <td>{order.codigoPedido || order.id}</td>
+                  <td>{order.customerLabel || '-'}</td>
+                  <td>{money(order.total)}</td>
+                  <td>{money(order.efectivo)}</td>
+                  <td>{money(order.tarjeta)}</td>
+                  <td>
+                    {order.fechaHoraCierre
+                      ? new Date(order.fechaHoraCierre).toLocaleString()
+                      : '-'}
+                  </td>
+                </tr>
+              ))}
+
+              <tr>
+                <td colSpan="2"><b>Totales</b></td>
+                <td><b>{money(reportTotals.totalVentas)}</b></td>
+                <td><b>{money(reportTotals.totalEfectivo)}</b></td>
+                <td><b>{money(reportTotals.totalTarjeta)}</b></td>
+                <td>-</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={styles.panel}>
+        <h3 style={{ marginTop: 0 }}>Productos más vendidos</h3>
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topProducts.map((item) => (
+                <tr key={item.nombre}>
+                  <td>{item.nombre}</td>
+                  <td>{item.cantidad}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+)}
     </div>
   );
 }
