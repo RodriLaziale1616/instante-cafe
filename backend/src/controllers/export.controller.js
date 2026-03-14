@@ -121,15 +121,20 @@ exports.excel = async (req, res) => {
     );
 
     const fechaInicio = req.query.fechaInicio || 'inicio';
-    const fechaFin = req.query.fechaFin || 'fin';
+const fechaFin = req.query.fechaFin || 'fin';
 
-    res.setHeader(
-      'Content-Disposition',
-      attachment; filename="modo-cafe-reportes-${fechaInicio}-a-${fechaFin}.xlsx"
-    );
+res.setHeader(
+  'Content-Type',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+);
 
-    await workbook.xlsx.write(res);
-    res.end();
+res.setHeader(
+  'Content-Disposition',
+  attachment; filename="modo-cafe-reportes-${fechaInicio}-a-${fechaFin}.xlsx"
+);
+
+await workbook.xlsx.write(res);
+res.end();
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'No se pudo exportar el Excel' });
