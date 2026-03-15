@@ -9,14 +9,6 @@ const money = (n) =>
     maximumFractionDigits: 0,
   }).format(n || 0);
 
-  const today = new Date().toISOString().slice(0, 10);
-const [reportFilters, setReportFilters] = useState({
-  fechaInicio: today,
-  fechaFin: today,
-});
-
-const AUTO_LOGOUT_MS = 30 * 60 * 1000;
-
 function getStyles(theme) {
   const isDark = theme === 'dark';
 
@@ -480,9 +472,16 @@ statValue: {
 }
 
 function App() {
+  const today = new Date().toISOString().slice(0, 10);
+  const AUTO_LOGOUT_MS = 30 * 60 * 1000;
+
   const [theme, setTheme] = useState(localStorage.getItem('instante_theme') || 'light');
   const styles = getStyles(theme);
-  const AUTO_LOGOUT_MS = 30 * 60 * 1000;
+
+  const [reportFilters, setReportFilters] = useState({
+    fechaInicio: today,
+    fechaFin: today,
+  });
   const [token, setToken] = useState(localStorage.getItem('instante_token'));
   const [user, setUser] = useState(null);
   const [catalog, setCatalog] = useState([]);
@@ -503,6 +502,7 @@ function App() {
     tipo: 'simple',
     activo: true,
   })
+  
   const [usersList, setUsersList] = useState([]);
   const [savingUser, setSavingUser] = useState(false);
   const [userForm, setUserForm] = useState({
@@ -517,39 +517,18 @@ function App() {
   const isOperador = user?.rol === 'operador';;
 
   useEffect(() => {
-    localStorage.setItem('instante_theme', theme);
-  }, [theme]);
+  localStorage.setItem('instante_theme', theme);
+}, [theme]);
 
-  useEffect(() => {
-    if (!token) return;
-    loadBootstrap();
-  }, [token]);
-  useEffect(() => {
+useEffect(() => {
   if (!token) return;
-  let timeout;
+  loadBootstrap();
+}, [token]);
 
 useEffect(() => {
   if (!token) return;
 
   let timeout;
-
-  const resetTimer = () => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => {
-      logout(true);
-    }, AUTO_LOGOUT_MS);
-  };
-
-  const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-
-  events.forEach((event) => window.addEventListener(event, resetTimer));
-  resetTimer();
-
-  return () => {
-    clearTimeout(timeout);
-    events.forEach((event) => window.removeEventListener(event, resetTimer));
-  };
-}, [token]);
 
   const resetTimer = () => {
     clearTimeout(timeout);
@@ -683,38 +662,39 @@ async function loadReports(customFilters) {
     return Math.max(maxClosed, currentOrder.localNumber || 0) + 1;
   }
 
-  async function handleLogin(e) {
-    e.preventDefault();
-    setLoading(true);
+async function handleLogin(e) {
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      const form = new FormData(e.currentTarget);
+  try {
+    const form = new FormData(e.currentTarget);
 
-      const body = new URLSearchParams();
-      body.append('codigo', form.get('codigo'));
-      body.append('password', form.get('password'));
+    const body = new URLSearchParams();
+    body.append('codigo', form.get('codigo'));
+    body.append('password', form.get('password'));
 
-      const { data } = await api.post('/auth/login', body, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
+    const { data } = await api.post('/auth/login', body, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
 
-      localStorage.setItem('instante_token', data.token);
-      setToken(data.token);
-      setUser(data.user);
-      setScreen('pos');
-setMobileTab('productos');
-setLastTicket(null);
-setCurrentOrder(createEmptyOrder());
-resetProductFormp();
-resetUserForm();
-    } catch (error) {
-      alert(error.response?.data?.message || 'No se pudo iniciar sesión');
-    } finally {
-      setLoading(false);
-    }
+    localStorage.setItem('instante_token', data.token);
+    setToken(data.token);
+    setUser(data.user);
+    setScreen('pos');
+    setMobileTab('productos');
+    setActiveCategory('Todos');
+    setLastTicket(null);
+    setCurrentOrder(createEmptyOrder());
+    resetProductForm();
+    resetUserForm();
+  } catch (error) {
+    alert(error.response?.data?.message || 'No se pudo iniciar sesión');
+  } finally {
+    setLoading(false);
   }
+}
 
 function logout(auto = false) {
   localStorage.removeItem('instante_token');
@@ -804,7 +784,7 @@ function logout(auto = false) {
   const paid = efectivo + tarjeta;
   const difference = total - paid;
   const canClose = currentOrder.sentToKitchen && total > 0 && difference === 0 && currentOrder.dbId;
-const reportTotals = useMemo(() => {
+  const reportTotals = useMemo(() => {
   const totalVentas = ordersReport.reduce((acc, order) => acc + Number(order.total || 0), 0);
   const totalEfectivo = ordersReport.reduce((acc, order) => acc + Number(order.efectivo || 0), 0);
   const totalTarjeta = ordersReport.reduce((acc, order) => acc + Number(order.tarjeta || 0), 0);
@@ -851,7 +831,7 @@ const reportTotals = useMemo(() => {
 
 async function closeOrder() {
   try {
-    await api.post('/orders/${currentOrder.dbId}/close', { efectivo, tarjeta });
+    await api.post(`/orders/${currentOrder.dbId}/close`, { efectivo, tarjeta });
 
     const ticketData = {
       numeroDia: currentOrder.localNumber,
@@ -1165,96 +1145,67 @@ async function closeOrder() {
             </section>
           </main>
         </>
-        ) : screen === 'usuarios' ? (
+       ) : screen === 'usuarios' ? (
   <section style={styles.productsPage}>
     <div style={styles.productsLayout} className="report-grid-force">
-<div style={styles.panel}>
-  <h3 style={{ marginTop: 0 }}>Comandas cerradas</h3>
+      <div style={styles.panel}>
+        <div style={styles.productsActions}>
+          <button style={styles.primaryButton} onClick={openNewUserForm}>
+            + Nuevo usuario
+          </button>
+          <button style={styles.secondaryButton} onClick={() => loadUsers()}>
+            Actualizar lista
+          </button>
+        </div>
 
-  <div style={styles.productsActions}>
-    <div>
-      <label style={styles.label}>Desde</label>
-      <input
-        type="date"
-        value={reportFilters.fechaInicio}
-        onChange={(e) =>
-          setReportFilters((prev) => ({ ...prev, fechaInicio: e.target.value }))
-        }
-        style={styles.input}
-      />
-    </div>
+        <h2 style={styles.sectionTitle}>Usuarios</h2>
 
-    <div>
-      <label style={styles.label}>Hasta</label>
-      <input
-        type="date"
-        value={reportFilters.fechaFin}
-        onChange={(e) =>
-          setReportFilters((prev) => ({ ...prev, fechaFin: e.target.value }))
-        }
-        style={styles.input}
-      />
-    </div>
-
-    <div style={{ display: 'flex', alignItems: 'end' }}>
-      <button
-        style={styles.primaryButton}
-        onClick={() => loadReports(reportFilters)}
-      >
-        Filtrar
-      </button>
-    </div>
-  </div>
-
-  <div style={styles.tableWrap}>
-    <table style={styles.table}>
-      <thead>
-        <tr>
-          <th>Comanda</th>
-          <th>Cliente</th>
-          <th>Total</th>
-          <th>Efectivo</th>
-          <th>Tarjeta</th>
-          <th>Fecha cierre</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ordersReport.map((order) => (
-          <tr key={order.id}>
-            <td>{order.codigoPedido || order.id}</td>
-            <td>{order.customerLabel || '-'}</td>
-            <td>{money(order.total)}</td>
-            <td>{money(order.efectivo)}</td>
-            <td>{money(order.tarjeta)}</td>
-            <td>
-              {order.fechaHoraCierre
-                ? new Date(order.fechaHoraCierre).toLocaleString()
-                : '-'}
-            </td>
-          </tr>
-        ))}
-
-        <tr>
-          <td colSpan="2"><b>Totales</b></td>
-          <td><b>{money(reportTotals.total)}</b></td>
-          <td><b>{money(reportTotals.efectivo)}</b></td>
-          <td><b>{money(reportTotals.tarjeta)}</b></td>
-          <td>-</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Rol</th>
+                <th>Activo</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {usersList.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.codigo}</td>
+                  <td>{item.nombre}</td>
+                  <td>{item.rol}</td>
+                  <td>{item.activo ? 'Sí' : 'No'}</td>
+                  <td>
+                    <button
+                      style={styles.secondaryButton}
+                      onClick={() => openEditUserForm(item)}
+                    >
+                      Editar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div style={styles.panel}>
-        <h2 style={styles.sectionTitle}>{userForm.id ? 'Editar usuario' : 'Nuevo usuario'}</h2>
+        <h2 style={styles.sectionTitle}>
+          {userForm.id ? 'Editar usuario' : 'Nuevo usuario'}
+        </h2>
 
         <form onSubmit={saveUser} style={styles.formGrid}>
           <div>
             <label style={styles.label}>Código</label>
             <input
               value={userForm.codigo}
-              onChange={(e) => setUserForm((prev) => ({ ...prev, codigo: e.target.value }))}
+              onChange={(e) =>
+                setUserForm((prev) => ({ ...prev, codigo: e.target.value }))
+              }
               style={styles.input}
             />
           </div>
@@ -1263,17 +1214,23 @@ async function closeOrder() {
             <label style={styles.label}>Nombre</label>
             <input
               value={userForm.nombre}
-              onChange={(e) => setUserForm((prev) => ({ ...prev, nombre: e.target.value }))}
+              onChange={(e) =>
+                setUserForm((prev) => ({ ...prev, nombre: e.target.value }))
+              }
               style={styles.input}
             />
           </div>
 
           <div>
-            <label style={styles.label}>Contraseña {userForm.id ? '(dejar vacío para no cambiar)' : ''}</label>
+            <label style={styles.label}>
+              Contraseña {userForm.id ? '(dejar vacío para no cambiar)' : ''}
+            </label>
             <input
               type="password"
               value={userForm.password}
-              onChange={(e) => setUserForm((prev) => ({ ...prev, password: e.target.value }))}
+              onChange={(e) =>
+                setUserForm((prev) => ({ ...prev, password: e.target.value }))
+              }
               style={styles.input}
             />
           </div>
@@ -1282,7 +1239,9 @@ async function closeOrder() {
             <label style={styles.label}>Rol</label>
             <select
               value={userForm.rol}
-              onChange={(e) => setUserForm((prev) => ({ ...prev, rol: e.target.value }))}
+              onChange={(e) =>
+                setUserForm((prev) => ({ ...prev, rol: e.target.value }))
+              }
               style={styles.input}
             >
               <option value="admin">Administrador</option>
@@ -1294,16 +1253,26 @@ async function closeOrder() {
             <input
               type="checkbox"
               checked={userForm.activo}
-              onChange={(e) => setUserForm((prev) => ({ ...prev, activo: e.target.checked }))}
+              onChange={(e) =>
+                setUserForm((prev) => ({ ...prev, activo: e.target.checked }))
+              }
             />
             Activo
           </label>
 
           <div style={styles.productsActions}>
             <button type="submit" style={styles.primaryButton} disabled={savingUser}>
-              {savingUser ? 'Guardando...' : (userForm.id ? 'Guardar cambios' : 'Crear usuario')}
+              {savingUser
+                ? 'Guardando...'
+                : userForm.id
+                ? 'Guardar cambios'
+                : 'Crear usuario'}
             </button>
-            <button type="button" style={styles.secondaryButton} onClick={resetUserForm}>
+            <button
+              type="button"
+              style={styles.secondaryButton}
+              onClick={resetUserForm}
+            >
               Limpiar
             </button>
           </div>
