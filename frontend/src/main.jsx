@@ -1,3 +1,4 @@
+console.log('este es el main real');
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import api from './api/client';
@@ -585,38 +586,42 @@ function App() {
       ? catalog
       : catalog.filter((p) => p.categoria === activeCategory);
 
-  function addProduct(product) {
-    if (currentOrder.sentToKitchen) return;
+function addProduct(product) {
+  if (currentOrder.sentToKitchen) return;
 
-    setCurrentOrder((prev) => {
-      const existing = prev.items.find((i) => i.productoId === product.id);
-      if (existing) {
-        return {
-          ...prev,
-          items: prev.items.map((i) =>
-            i.productoId === product.id ? { ...i, cantidad: i.cantidad + 1 } : i
-          ),
-        };
-      }
+  setCurrentOrder((prev) => {
+    const existing = prev.items.find((i) => i.productoId === product.id);
 
+    if (existing) {
       return {
         ...prev,
-        items: [
-          ...prev.items,
-          {
-            productoId: product.id,
-            nombre: product.nombre,
-            cantidad: 1,
-            precio: product.precio,
-            tipo: product.tipo,
-            components: product.components || [],
-          },
-        ],
+        items: prev.items.map((i) =>
+          i.productoId === product.id
+            ? { ...i, cantidad: i.cantidad + 1 }
+            : i
+        ),
       };
-    });
+    }
 
-    setMobileTab('pedido');
-  }
+    return {
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          productoId: product.id,
+          nombre: product.nombre,
+          cantidad: 1,
+          precio: product.precio,
+          tipo: product.tipo,
+          observacion: '', // 🔥 ESTE ERA EL FALTANTE
+          components: product.components || [],
+        },
+      ],
+    };
+  });
+
+  setMobileTab('pedido');
+}
 
   function changeQty(productoId, delta) {
     if (currentOrder.sentToKitchen) return;
@@ -632,6 +637,19 @@ function App() {
         .filter((item) => item.cantidad > 0),
     }));
   }
+
+  function changeItemObservation(productoId, observacion) {
+  if (currentOrder.sentToKitchen) return;
+
+  setCurrentOrder((prev) => ({
+    ...prev,
+    items: prev.items.map((item) =>
+      item.productoId === productoId
+        ? { ...item, observacion }
+        : item
+    ),
+  }));
+}
 
   function removeItem(productoId) {
     if (currentOrder.sentToKitchen) return;
@@ -664,8 +682,9 @@ function App() {
       const { data } = await api.post('/orders', {
         customerLabel: currentOrder.customerLabel,
         items: currentOrder.items.map((item) => ({
-          productoId: item.productoId,
-          cantidad: item.cantidad,
+  productoId: item.productoId,
+  cantidad: item.cantidad,
+  observacion: item.observacion || '',
         })),
       });
 
@@ -1029,19 +1048,39 @@ function App() {
                 {currentOrder.items.length === 0 ? (
                   <div style={styles.emptyState}>Aún no agregaste productos</div>
                 ) : (
-                  currentOrder.items.map((item) => (
-                    <div key={item.productoId} style={styles.itemCard}>
-                      <div style={{ flex: 1 }}>
-                        <div style={styles.itemName}>{item.nombre}</div>
-                        {item.components?.length ? (
-                          <div style={styles.itemMeta}>
-                            {item.components.map((c) => c.nombre).join(' + ')}
-                          </div>
-                        ) : null}
-                        <div style={styles.itemMeta}>
-                          {money(item.precio)} c/u · Subtotal {money(item.cantidad * item.precio)}
-                        </div>
-                      </div>
+                  currentOrder.items.map((item, index) => (
+                    <div key={item.productoId + '-' + index} style={styles.itemCard}>
+                     <div style={{ flex: 1 }}>
+  <div style={styles.itemName}>{item.nombre}</div>
+
+  {item.components?.length ? (
+    <div style={styles.itemMeta}>
+      {item.components.map((c) => c.nombre).join(' + ')}
+    </div>
+  ) : null}
+
+  <div style={styles.itemMeta}>
+    {money(item.precio)} c/u · Subtotal {money(item.cantidad * item.precio)}
+  </div>
+  <div style={{ color: 'red' }}>TEST OBS</div>
+
+  {/* 🔥 CAMPO OBSERVACIÓN */}
+  <textarea
+    value={item.observacion || ''}
+    onChange={(e) =>
+      changeItemObservation(item.productoId, e.target.value)
+    }
+    placeholder="Ej: sin azúcar, sin jamón, sin lactosa..."
+    style={{
+      marginTop: 8,
+      padding: 10,
+      borderRadius: 10,
+      border: '1px solid #ccc',
+      width: '100%',
+      fontSize: 14,
+    }}
+  />
+</div>
 
                       <div style={styles.qtyActions}>
                         <button
