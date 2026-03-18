@@ -1,4 +1,3 @@
-console.log('este es el main real');
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import api from './api/client';
@@ -1062,7 +1061,7 @@ function addProduct(product) {
   <div style={styles.itemMeta}>
     {money(item.precio)} c/u · Subtotal {money(item.cantidad * item.precio)}
   </div>
-  <div style={{ color: 'red' }}>TEST OBS</div>
+
 
   {/* 🔥 CAMPO OBSERVACIÓN */}
   <textarea
