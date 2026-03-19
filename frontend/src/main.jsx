@@ -1351,14 +1351,17 @@ function addProduct(product) {
             </div>
 
             <div style={styles.ticketItems}>
-              {lastTicket?.items?.map((item) => (
-                <div key={item.productoId} style={styles.ticketRow}>
+              {lastTicket?.items?.map((item, index) => (
+                <div key={item.productoId + '-' + index} style={styles.ticketRow}>
                   <div>
-                    <div style={{ fontWeight: 700 }}>{item.nombre}</div>
-                    <div style={styles.ticketMeta}>
-                      {item.cantidad} x {money(item.precio)}
-                    </div>
-                  </div>
+  <div style={{ fontWeight: 700 }}>{item.nombre}</div>
+  <div style={styles.ticketMeta}>
+    {item.cantidad} x {money(item.precio)}
+  </div>
+  {item.observacion?.trim() ? (
+    <div style={styles.ticketMeta}>Obs: {item.observacion}</div>
+  ) : null}
+</div>
                   <div style={{ fontWeight: 700 }}>
                     {money(item.cantidad * item.precio)}
                   </div>
