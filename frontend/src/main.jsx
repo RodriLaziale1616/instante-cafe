@@ -754,9 +754,29 @@ function addProduct(product) {
     setMobileTab('productos');
   }
 
-  function printTicket() {
-    window.print();
+async function printTicket() {
+  try {
+    const response = await fetch('http://localhost:3031/print', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        printerName: 'SEWOO 300mm #1',
+        ticket: lastTicket,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'No se pudo imprimir');
+    }
+
+    alert('Impresión enviada a la térmica');
+  } catch (error) {
+    console.error(error);
+    alert(error.message || 'No se pudo imprimir');
   }
+}
 
   function openNewProductForm() {
     resetProductForm();
