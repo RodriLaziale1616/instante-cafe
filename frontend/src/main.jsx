@@ -760,7 +760,7 @@ async function printTicket() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        printerName: 'SEWOO 300mm #1',
+        printerName: 'Generic / Text Only (Copy 1)',
         ticket: lastTicket,
       }),
     });
