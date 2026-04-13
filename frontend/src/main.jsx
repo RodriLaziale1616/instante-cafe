@@ -756,7 +756,7 @@ function addProduct(product) {
 
 async function printTicket() {
   try {
-    const response = await fetch('http://localhost:3031/print', {
+    const response = await fetch('http://192.168.100.4:3031/print', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
