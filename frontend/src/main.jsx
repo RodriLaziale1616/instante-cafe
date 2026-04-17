@@ -552,8 +552,8 @@ const [expenseForm, setExpenseForm] = useState({
   };
 
   const [{ data: list }, { data: summary }] = await Promise.all([
-    api.get('/api/expenses', { params }),
-    api.get('/api/expenses/summary', { params }),
+    api.get('/expenses', { params }),
+    api.get('expenses/summary', { params }),
   ]);
 
   setExpenses(list);
@@ -573,7 +573,7 @@ async function saveExpense(e) {
   setSavingExpense(true);
 
   try {
-    await api.post('/api/expenses', {
+    await api.post('/expenses', {
       fecha: expenseForm.fecha,
       tipo: expenseForm.tipo,
       descripcion: expenseForm.descripcion,
