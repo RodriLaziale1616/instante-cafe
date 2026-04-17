@@ -425,6 +425,26 @@ function App() {
       events.forEach((event) => window.removeEventListener(event, resetTimer));
     };
   }, [token]);
+  const [expenses, setExpenses] = useState([]);
+const [expensesSummary, setExpensesSummary] = useState({
+  total: 0,
+  insumos: 0,
+  costos_fijos: 0,
+  salario: 0,
+  otros: 0,
+});
+const [savingExpense, setSavingExpense] = useState(false);
+const [expenseFilters, setExpenseFilters] = useState({
+  fechaInicio: today,
+  fechaFin: today,
+});
+const [expenseForm, setExpenseForm] = useState({
+  fecha: today,
+  tipo: 'insumos',
+  descripcion: '',
+  monto: '',
+});
+
 
   useEffect(() => {
     if (!user) return;
@@ -522,6 +542,53 @@ function App() {
       : 0;
     return Math.max(maxClosed, currentOrder.localNumber || 0) + 1;
   }
+
+  async function loadExpenses(customFilters) {
+  const filters = customFilters || expenseFilters;
+
+  const params = {
+    fechaInicio: filters.fechaInicio,
+    fechaFin: filters.fechaFin,
+  };
+
+  const [{ data: list }, { data: summary }] = await Promise.all([
+    api.get('/api/expenses', { params }),
+    api.get('/api/expenses/summary', { params }),
+  ]);
+
+  setExpenses(list);
+  setExpensesSummary(summary);
+}
+function resetExpenseForm() {
+  setExpenseForm({
+    fecha: today,
+    tipo: 'insumos',
+    descripcion: '',
+    monto: '',
+  });
+}
+
+async function saveExpense(e) {
+  e.preventDefault();
+  setSavingExpense(true);
+
+  try {
+    await api.post('/api/expenses', {
+      fecha: expenseForm.fecha,
+      tipo: expenseForm.tipo,
+      descripcion: expenseForm.descripcion,
+      monto: Number(expenseForm.monto),
+    });
+
+    await loadExpenses();
+    resetExpenseForm();
+    alert('Gasto guardado correctamente');
+  } catch (error) {
+    alert(error.response?.data?.message || 'No se pudo guardar el gasto');
+  } finally {
+    setSavingExpense(false);
+  }
+}
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -956,6 +1023,19 @@ async function printTicket() {
               Reportes
             </button>
           )}
+         
+          {isAdmin && (
+  <button
+    style={screen === 'gastos' ? styles.primaryButton : styles.secondaryButton}
+    onClick={() => {
+      setScreen('gastos');
+      loadExpenses();
+    }}
+  >
+    Gastos
+  </button>
+)}
+
 
           <button style={styles.secondaryButton} onClick={newOrder}>
             Nuevo pedido
@@ -1429,7 +1509,182 @@ async function printTicket() {
             </div>
           </div>
         </section>
-      ) : screen === 'productos' ? (
+        ) : screen === 'gastos' ? (
+  <section style={styles.productsPage}>
+    <div style={styles.statsGrid}>
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Total gastos</div>
+        <div style={styles.statValue}>{money(expensesSummary.total)}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Insumos</div>
+        <div style={styles.statValue}>{money(expensesSummary.insumos)}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Costos fijos</div>
+        <div style={styles.statValue}>{money(expensesSummary.costos_fijos)}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Salarios</div>
+        <div style={styles.statValue}>{money(expensesSummary.salario)}</div>
+      </div>
+
+      <div style={styles.statCard}>
+        <div style={styles.statLabel}>Otros</div>
+        <div style={styles.statValue}>{money(expensesSummary.otros)}</div>
+      </div>
+    </div>
+
+    <div style={styles.productsLayout} className="report-grid-force">
+      <div style={styles.panel}>
+        <h2 style={styles.sectionTitle}>Cargar gasto</h2>
+
+        <form onSubmit={saveExpense} style={styles.formGrid}>
+          <div>
+            <label style={styles.label}>Fecha</label>
+            <input
+              type="date"
+              value={expenseForm.fecha}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({ ...prev, fecha: e.target.value }))
+              }
+              style={styles.input}
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>Tipo de gasto</label>
+            <select
+              value={expenseForm.tipo}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({ ...prev, tipo: e.target.value }))
+              }
+              style={styles.input}
+            >
+              <option value="insumos">Insumos</option>
+              <option value="costos_fijos">Costos fijos</option>
+              <option value="salario">Salario</option>
+              <option value="otros">Otros</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={styles.label}>Descripción</label>
+            <input
+              value={expenseForm.descripcion}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({
+                  ...prev,
+                  descripcion: e.target.value,
+                }))
+              }
+              style={styles.input}
+              placeholder="Ej: compra de leche, alquiler, limpieza..."
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>Monto</label>
+            <input
+              type="number"
+              value={expenseForm.monto}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({ ...prev, monto: e.target.value }))
+              }
+              style={styles.input}
+            />
+          </div>
+
+          <div style={styles.productsActions}>
+            <button type="submit" style={styles.primaryButton} disabled={savingExpense}>
+              {savingExpense ? 'Guardando...' : 'Guardar gasto'}
+            </button>
+
+            <button
+              type="button"
+              style={styles.secondaryButton}
+              onClick={resetExpenseForm}
+            >
+              Limpiar
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div style={styles.panel}>
+        <h2 style={styles.sectionTitle}>Listado de gastos</h2>
+
+        <div style={styles.productsActions}>
+          <div>
+            <label style={styles.label}>Desde</label>
+            <input
+              type="date"
+              value={expenseFilters.fechaInicio}
+              onChange={(e) =>
+                setExpenseFilters((prev) => ({
+                  ...prev,
+                  fechaInicio: e.target.value,
+                }))
+              }
+              style={styles.input}
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>Hasta</label>
+            <input
+              type="date"
+              value={expenseFilters.fechaFin}
+              onChange={(e) =>
+                setExpenseFilters((prev) => ({
+                  ...prev,
+                  fechaFin: e.target.value,
+                }))
+              }
+              style={styles.input}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'end' }}>
+            <button
+              style={styles.primaryButton}
+              onClick={() => loadExpenses(expenseFilters)}
+            >
+              Filtrar
+            </button>
+          </div>
+        </div>
+
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Descripción</th>
+                <th>Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.fecha}</td>
+                  <td>{item.tipo}</td>
+                  <td>{item.descripcion || '-'}</td>
+                  <td>{money(item.monto)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+        ) : screen === 'productos' ? (
         <section style={styles.productsPage}>
           <div style={styles.productsLayout} className="report-grid-force">
             <div style={styles.panel}>

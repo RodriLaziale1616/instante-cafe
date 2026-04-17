@@ -17,6 +17,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   pedidos      Pedido[]
+  gastos       Expense[]
 }
 
 model Product {
@@ -87,3 +88,15 @@ model PedidoItemComponente {
   updatedAt      DateTime @updatedAt
   pedidoItem     PedidoItem @relation(fields: [pedidoItemId], references: [id], onDelete: Cascade)
 }
+model Expense {
+  id          Int      @id @default(autoincrement())
+  fecha       String
+  tipo        String
+  descripcion String?
+  monto       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  usuarioId   Int
+  usuario     User     @relation(fields: [usuarioId], references: [id])
+}
+

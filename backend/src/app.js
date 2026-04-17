@@ -5,6 +5,8 @@ const auth = require('./middlewares/auth');
 const authController = require('./controllers/auth.controller');
 
 const app = express();
+const expensesRoutes = require('./routes/expenses.routes');
+
 
 app.use(cors({
   origin: true,
@@ -36,6 +38,8 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ message: err.message || 'Error interno del servidor' });
 });
+app.use('/api/expenses', expensesRoutes);
+
 // app.use('/api/export', require('./routes/export.routes'));
 
 module.exports = app;
