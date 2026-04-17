@@ -18,6 +18,8 @@ model User {
   updatedAt    DateTime @updatedAt
   pedidos      Pedido[]
   gastos       Expense[]
+  pedidosAnulados Pedido[] @relation("PedidoAnuladoPor")
+
 }
 
 model Product {
@@ -61,6 +63,11 @@ model Pedido {
   usuarioId         Int
   usuario           User     @relation(fields: [usuarioId], references: [id])
   items             PedidoItem[]
+  anuladoAt       DateTime?
+  anuladoPorId    Int?
+  motivoAnulacion String?
+  anuladoPor      User?    @relation("PedidoAnuladoPor", fields: [anuladoPorId], references: [id])
+
 }
 
 model PedidoItem {

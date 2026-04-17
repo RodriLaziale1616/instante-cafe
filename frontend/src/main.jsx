@@ -385,15 +385,36 @@ function App() {
 
   const isAdmin = user?.rol === 'admin';
 
-  const reportTotals = useMemo(() => {
-    const totalVentas = ordersReport.reduce((acc, order) => acc + Number(order.total || 0), 0);
-    const totalEfectivo = ordersReport.reduce((acc, order) => acc + Number(order.efectivo || 0), 0);
-    const totalTarjeta = ordersReport.reduce((acc, order) => acc + Number(order.tarjeta || 0), 0);
-    const cantidadComandas = ordersReport.length;
-    const ticketPromedio = cantidadComandas ? totalVentas / cantidadComandas : 0;
+const reportTotals = useMemo(() => {
+  const closedOrders = ordersReport.filter((order) => order.estado === 'cerrado');
 
-    return { totalVentas, totalEfectivo, totalTarjeta, cantidadComandas, ticketPromedio };
-  }, [ordersReport]);
+  const totalVentas = closedOrders.reduce(
+    (acc, order) => acc + Number(order.total || 0),
+    0
+  );
+
+  const totalEfectivo = closedOrders.reduce(
+    (acc, order) => acc + Number(order.efectivo || 0),
+    0
+  );
+
+  const totalTarjeta = closedOrders.reduce(
+    (acc, order) => acc + Number(order.tarjeta || 0),
+    0
+  );
+
+  const cantidadComandas = closedOrders.length;
+  const ticketPromedio = cantidadComandas ? totalVentas / cantidadComandas : 0;
+
+  return {
+    totalVentas,
+    totalEfectivo,
+    totalTarjeta,
+    cantidadComandas,
+    ticketPromedio,
+  };
+}, [ordersReport]);
+
 
   useEffect(() => {
     localStorage.setItem('instante_theme', theme);
@@ -589,6 +610,30 @@ async function saveExpense(e) {
     setSavingExpense(false);
   }
 }
+
+async function cancelOrder(order) {
+  const motivo = window.prompt(
+    `Motivo de anulación para la comanda ${order.codigoPedido || order.id}:`,
+    order.motivoAnulacion || ''
+  );
+
+  if (motivo === null) return;
+
+  const confirmado = window.confirm(
+    `¿Seguro que deseas anular la comanda ${order.codigoPedido || order.id}?`
+  );
+
+  if (!confirmado) return;
+
+  try {
+    await api.post(`/api/orders/${order.id}/cancel`, { motivo });
+    await loadReports();
+    alert('Comanda anulada correctamente');
+  } catch (error) {
+    alert(error.response?.data?.message || 'No se pudo anular la comanda');
+  }
+}
+
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -1904,27 +1949,50 @@ async function printTicket() {
                     <tr>
                       <th>Comanda</th>
                       <th>Cliente</th>
+                      <th>Estado</th>
                       <th>Total</th>
                       <th>Efectivo</th>
                       <th>Tarjeta</th>
                       <th>Fecha cierre</th>
+                      <th>Motivo</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {ordersReport.map((order) => (
-                      <tr key={order.id}>
-                        <td>{order.codigoPedido || order.id}</td>
-                        <td>{order.customerLabel || '-'}</td>
-                        <td>{money(order.total)}</td>
-                        <td>{money(order.efectivo)}</td>
-                        <td>{money(order.tarjeta)}</td>
-                        <td>
-                          {order.fechaHoraCierre
-                            ? new Date(order.fechaHoraCierre).toLocaleString()
-                            : '-'}
-                        </td>
-                      </tr>
-                    ))}
+                  {ordersReport.map((order) => (
+  <tr
+    key={order.id}
+    style={
+      order.estado === 'anulado'
+        ? { opacity: 0.6, textDecoration: 'line-through' }
+        : {}
+    }
+  >
+    <td>{order.codigoPedido || order.id}</td>
+    <td>{order.customerLabel || '-'}</td>
+    <td>{order.estado}</td>
+    <td>{money(order.total)}</td>
+    <td>{money(order.efectivo)}</td>
+    <td>{money(order.tarjeta)}</td>
+    <td>
+      {order.fechaHoraCierre
+        ? new Date(order.fechaHoraCierre).toLocaleString()
+        : '-'}
+    </td>
+    <td>{order.motivoAnulacion || '-'}</td>
+    <td>
+      {isAdmin && order.estado !== 'anulado' ? (
+        <button
+          style={styles.secondaryButton}
+          onClick={() => cancelOrder(order)}
+        >
+          Anular
+        </button>
+      ) : null}
+    </td>
+  </tr>
+))}
+
 
                     <tr>
                       <td colSpan="2">
@@ -1940,6 +2008,8 @@ async function printTicket() {
                         <b>{money(reportTotals.totalTarjeta)}</b>
                       </td>
                       <td>-</td>
+                       <td>-</td>
+                        <td>-</td>
                     </tr>
                   </tbody>
                 </table>
