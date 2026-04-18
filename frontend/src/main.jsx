@@ -626,7 +626,7 @@ async function cancelOrder(order) {
   if (!confirmado) return;
 
   try {
-    await api.post(`/api/orders/${order.id}/cancel`, { motivo });
+    await api.post(`/orders/${order.id}/cancel`, { motivo });
     await loadReports();
     alert('Comanda anulada correctamente');
   } catch (error) {
