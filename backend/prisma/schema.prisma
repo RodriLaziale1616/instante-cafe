@@ -79,6 +79,7 @@ model PedidoItem {
   cantidad       Int
   precioUnitario Int
   subtotal       Int
+  observacion    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
