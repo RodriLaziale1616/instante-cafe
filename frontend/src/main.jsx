@@ -437,6 +437,23 @@ const reportTotals = useMemo(() => {
       }, AUTO_LOGOUT_MS);
     };
 
+    useEffect(() => {
+  const handleUnauthorized = () => {
+    localStorage.removeItem('instante_token');
+
+    setToken(null);
+    setUser(null);
+    setScreen('pos');
+    setMobileTab('productos');
+  };
+
+  window.addEventListener('instante:unauthorized', handleUnauthorized);
+
+  return () => {
+    window.removeEventListener('instante:unauthorized', handleUnauthorized);
+  };
+}, []);
+
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
     events.forEach((event) => window.addEventListener(event, resetTimer));
     resetTimer();
