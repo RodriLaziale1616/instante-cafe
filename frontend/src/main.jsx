@@ -383,6 +383,26 @@ function App() {
     activo: true,
   });
 
+  const [expenses, setExpenses] = useState([]);
+  const [expensesSummary, setExpensesSummary] = useState({
+    total: 0,
+    insumos: 0,
+    costos_fijos: 0,
+    salario: 0,
+    otros: 0,
+  });
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [expenseFilters, setExpenseFilters] = useState({
+    fechaInicio: today,
+    fechaFin: today,
+  });
+  const [expenseForm, setExpenseForm] = useState({
+    fecha: today,
+    tipo: 'insumos',
+    descripcion: '',
+    monto: '',
+  });
+
   const isAdmin = user?.rol === 'admin';
 
 const reportTotals = useMemo(() => {
@@ -421,6 +441,22 @@ const reportTotals = useMemo(() => {
   }, [theme]);
 
   useEffect(() => {
+    const handleUnauthorized = () => {
+      localStorage.removeItem('instante_token');
+      setToken(null);
+      setUser(null);
+      setScreen('pos');
+      setMobileTab('productos');
+    };
+
+    window.addEventListener('instante:unauthorized', handleUnauthorized);
+
+    return () => {
+      window.removeEventListener('instante:unauthorized', handleUnauthorized);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!token) return;
     loadBootstrap();
   }, [token]);
@@ -437,22 +473,6 @@ const reportTotals = useMemo(() => {
       }, AUTO_LOGOUT_MS);
     };
 
-    useEffect(() => {
-  const handleUnauthorized = () => {
-    localStorage.removeItem('instante_token');
-
-    setToken(null);
-    setUser(null);
-    setScreen('pos');
-    setMobileTab('productos');
-  };
-
-  window.addEventListener('instante:unauthorized', handleUnauthorized);
-
-  return () => {
-    window.removeEventListener('instante:unauthorized', handleUnauthorized);
-  };
-}, []);
 
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
     events.forEach((event) => window.addEventListener(event, resetTimer));
@@ -463,27 +483,6 @@ const reportTotals = useMemo(() => {
       events.forEach((event) => window.removeEventListener(event, resetTimer));
     };
   }, [token]);
-  const [expenses, setExpenses] = useState([]);
-const [expensesSummary, setExpensesSummary] = useState({
-  total: 0,
-  insumos: 0,
-  costos_fijos: 0,
-  salario: 0,
-  otros: 0,
-});
-const [savingExpense, setSavingExpense] = useState(false);
-const [expenseFilters, setExpenseFilters] = useState({
-  fechaInicio: today,
-  fechaFin: today,
-});
-const [expenseForm, setExpenseForm] = useState({
-  fecha: today,
-  tipo: 'insumos',
-  descripcion: '',
-  monto: '',
-});
-
-
   useEffect(() => {
     if (!user) return;
     if (user.rol !== 'admin' && ['reportes', 'usuarios', 'productos'].includes(screen)) {
@@ -591,7 +590,7 @@ const [expenseForm, setExpenseForm] = useState({
 
   const [{ data: list }, { data: summary }] = await Promise.all([
     api.get('/expenses', { params }),
-    api.get('expenses/summary', { params }),
+    api.get('/expenses/summary', { params }),
   ]);
 
   setExpenses(list);
